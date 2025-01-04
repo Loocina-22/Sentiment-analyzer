@@ -1,14 +1,11 @@
-import tkinter as tk
-from tkinter import messagebox
+import streamlit as st
 from afinn import Afinn  # AFINN sentiment lexicon
 import re  # For handling phrases
 
 # Initialize AFINN lexicon
 afinn = Afinn()
 
-# Custom phrase sentiment lexicon
-# Enhancements for modifiers and negations
-# Map overall sentiment scores to statements
+# Function to map sentiment scores to sentiment statements
 def get_sentiment_statement(score):
     if score >= 3:
         return "Very Positive"
@@ -36,96 +33,71 @@ modifiers = {
 
 negations = {"not", "no", "never", "hardly"}
 
-# Function to calculate sentiment and display colored words
-# Function to calculate sentiment and display colored words
-def analyze_sentiment():
-    input_text = text_input.get("1.0", tk.END).strip()
-    if not input_text:
-        messagebox.showerror("Input Error", "Please enter some text.")
-        return
-
-    # Tokenize text into words
-    tokens = re.findall(r'\w+|[^\w\s]', input_text)
-    word_scores = []
-    overall_score = 0
-
-    # Process tokens with negation and modifier handling
-    i = 0
-    while i < len(tokens):
-        token = tokens[i].lower()
-        score = 0
-
-        if token in negations:
-            word_scores.append((tokens[i], 0))  # Negation words themselves are neutral
-            if i + 1 < len(tokens):
-                next_token = tokens[i + 1].lower()
-                next_score = afinn.score(next_token)
-                if next_score != 0:
-                    score = -next_score  # Reverse sentiment of the next word
-                    word_scores.append((tokens[i + 1], score))  # Add next word with modified score
-                    i += 1
-        elif token in modifiers:
-            word_scores.append((tokens[i], 0))  # Modifier words themselves are neutral
-            if i + 1 < len(tokens):
-                next_token = tokens[i + 1].lower()
-                next_score = afinn.score(next_token)
-                if next_score != 0:
-                    if next_score<0:
-                        score = next_score - modifiers[token]  # Boost sentiment of the next word
-                    else:
-                        score = next_score + modifiers[token]
-                    word_scores.append((tokens[i + 1], score))  # Add next word with modified score
-                    i += 1
-        else:
-            score = afinn.score(token)
-            word_scores.append((tokens[i], score))  # Normal words with their sentiment score
-
-        overall_score += score
-        i += 1
-
-    # Clear previous output
-    result_text.config(state=tk.NORMAL)
-    result_text.delete("1.0", tk.END)
-
-    # Display tokens with color coding
-    for token, score in word_scores:
-        if score > 0:
-            green_value = 255 - min(int(score * 50), 255)
-            color = f"#00{hex(green_value)[2:].zfill(2)}00"  # Green
-        elif score < 0:
-            red_value = 255 - min(int(abs(score) * 50), 255)
-            color = f"#{hex(red_value)[2:].zfill(2)}0000"  # Red
-        else:
-            color = "#FFFFFF"  # White
-        result_text.insert(tk.END, f"{token} ", ("colored", token))
-        result_text.tag_config(token, foreground=color)
-
-    # Display overall sentiment statement
-    sentiment_statement = get_sentiment_statement(overall_score)
-    result_label.config(text=f"Overall Sentiment: {sentiment_statement} \n Overall Score: {overall_score}")
-    result_text.config(state=tk.DISABLED)
-
-# GUI Setup
-app = tk.Tk()
-app.title("Enhanced Sentiment Analysis Tool")
-app.geometry("700x500")
+# Streamlit Application
+st.title("Enhanced Sentiment Analysis Tool")
 
 # Input Field
-tk.Label(app, text="Enter Text:", font=("Arial", 12)).pack(pady=5)
-text_input = tk.Text(app, height=5, width=80)
-text_input.pack(pady=5)
+st.subheader("Enter Text for Sentiment Analysis")
+input_text = st.text_area("Text Input", "")
 
 # Analyze Button
-analyze_button = tk.Button(app, text="Analyze Sentiment", command=analyze_sentiment)
-analyze_button.pack(pady=10)
+if st.button("Analyze Sentiment"):
+    if not input_text.strip():
+        st.error("Please enter some text.")
+    else:
+        # Tokenize text into words
+        tokens = re.findall(r'\w+|[^\w\s]', input_text)
+        word_scores = []
+        overall_score = 0
 
-# Result Display
-result_label = tk.Label(app, text="Overall Sentiment: Neutral", font=("Arial", 12))
-result_label.pack(pady=5)
+        # Process tokens with negation and modifier handling
+        i = 0
+        while i < len(tokens):
+            token = tokens[i].lower()
+            score = 0
 
-result_text = tk.Text(app, height=15, width=80, state=tk.DISABLED, wrap=tk.WORD)
-result_text.config(bg="black")
-result_text.pack(pady=5)
+            if token in negations:
+                word_scores.append((tokens[i], 0))
+                if i + 1 < len(tokens):
+                    next_token = tokens[i + 1].lower()
+                    next_score = afinn.score(next_token)
+                    if next_score != 0:
+                        score = -next_score
+                        word_scores.append((tokens[i + 1], score))
+                        i += 1
+            elif token in modifiers:
+                word_scores.append((tokens[i], 0))
+                if i + 1 < len(tokens):
+                    next_token = tokens[i + 1].lower()
+                    next_score = afinn.score(next_token)
+                    if next_score != 0:
+                        score = next_score + modifiers[token]
+                        word_scores.append((tokens[i + 1], score))
+                        i += 1
+            else:
+                score = afinn.score(token)
+                word_scores.append((tokens[i], score))
 
-# Run Application
-app.mainloop()
+            overall_score += score
+            i += 1
+
+        # Display Tokens with Color Coding
+        st.subheader("Word Sentiment Scores")
+        colored_text = ""
+        for token, score in word_scores:
+            if score > 0:
+                color = f"rgb(0, {min(255, int(score * 50))}, 0)"  # Green shades
+            elif score < 0:
+                color = f"rgb({min(255, int(abs(score) * 50))}, 0, 0)"  # Red shades
+            else:
+                color = "white"
+            colored_text += f"<span style='color:{color}; font-weight:bold;'>{token}</span> "
+
+        # Render Colored Text using HTML
+        st.markdown(colored_text, unsafe_allow_html=True)
+
+        # Display Overall Sentiment
+        sentiment_statement = get_sentiment_statement(overall_score)
+        st.subheader("Overall Sentiment")
+        st.write(f"**Sentiment:** {sentiment_statement}")
+        st.write(f"**Score:** {overall_score}")
